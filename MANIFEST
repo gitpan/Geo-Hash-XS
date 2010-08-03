@@ -1,6 +1,7 @@
 benchmark/encode.pl
 Changes
 inc/Module/Install.pm
+inc/Module/Install/AuthorTests.pm
 inc/Module/Install/Base.pm
 inc/Module/Install/Can.pm
 inc/Module/Install/Fetch.pm
@@ -17,4 +18,10 @@ ppport.h
 t/001_geohasn.t
 t/002_adjacent.t
 t/003_neighbors.t
+XS.bs
+xs/geohash.c
+xs/geohash.o
 xs/geohash.xs
+xt/04_leak.t
+xt/99_pod-coverage.t
+xt/99_pod.t
