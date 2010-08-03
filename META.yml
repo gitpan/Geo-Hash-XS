@@ -6,6 +6,7 @@ build_requires:
   Devel::PPPort: 3.19
   ExtUtils::MakeMaker: 6.42
   ExtUtils::ParseXS: 2.21
+  Test::More: 0.84
 configure_requires:
   Devel::PPPort: 3.19
   ExtUtils::MakeMaker: 6.42
@@ -24,4 +25,4 @@ requires:
   XSLoader: 0.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.00001
+version: 0.00002

@@ -108,6 +108,13 @@ char* NEIGHBORS[4][2] = {
     { "14365h7k9dcfesgujnmqp0r2twvyx8zb", "238967debc01fg45kmstqrwxuvhjyznp" }
 };
 
+char* BORDERS[4][2] = {
+    { "bcfguvyz", "prxz" },
+    { "0145hjnp", "028b" },
+    { "prxz", "bcfguvyz" },
+    { "028b", "0145hjnp" }
+};
+
 STRLEN
 precision(STRLEN lat, STRLEN lon) {
     IV lab;
@@ -125,31 +132,34 @@ enum GH_DIRECTION {
 };
 
 /* need to free this return value! */
+#define HASHBASE_BUFSIZ 8192
 char *
 adjacent(char *hash, STRLEN hashlen, enum GH_DIRECTION direction) {
-    char base[8192];
-    char last_ch = hash[ hashlen - 2 ];
+    char base[HASHBASE_BUFSIZ];
+    char last_ch = hash[ hashlen - 1 ];
     char *pos, *ret;
     IV type = hashlen % 2;
     IV base_len;
 
-    if (hashlen < 2)
+    if (hashlen < 1)
         croak("PANIC: hash too short!");
+    if (hashlen > HASHBASE_BUFSIZ)
+        croak("PANIC: hash too big!");
 
-    memcpy(base, hash, hashlen - 2 );
-    base[hashlen - 1] = '\0';
+    memcpy(base, hash, hashlen - 1);
+    *(base + hashlen - 1) = '\0';
 
-    pos = index(NEIGHBORS[direction][type], last_ch);
-    if (pos == NULL) {
-        char *tmp = adjacent(base, hashlen - 1, direction);
+    pos = index(BORDERS[direction][type], last_ch);
+    if (pos != NULL) {
+        char *tmp = adjacent(base, strlen(base), direction);
         strcpy(base, tmp);
         Safefree(tmp);
     }
-
     base_len = strlen(base);
-    Newxz( ret, base_len + 1, char );
+    Newxz( ret, base_len + 2, char );
     strcpy( ret, base );
-    ret[ base_len ] = PIECES[ index(NEIGHBORS[direction][type], last_ch) - NEIGHBORS[direction][type] ];
+    ret[ base_len ] = PIECES[ index(NEIGHBORS[direction][type], last_ch) - NEIGHBORS[direction][type] ]; 
+    *(ret + base_len + 1) = '\0';
     return ret;
 }
 
@@ -164,7 +174,7 @@ neighbors(char *hash, STRLEN hashlen, int around, int offset, char ***neighbors,
 
     while ( offset > 0 ) {
         char *top = adjacent( xhash, xhashlen, TOP );
-        char *left = adjacent( top, strlen(top), LEFT );
+        char *left = adjacent( top, strlen(top) + 1, LEFT );
         Safefree(xhash);
         Safefree(top);
         xhash = left;
@@ -177,7 +187,7 @@ neighbors(char *hash, STRLEN hashlen, int around, int offset, char ***neighbors,
     {
     int n = 0;
     *nsize = 0;
-    Newxz( neighbors, around, char **);
+    Newxz( *neighbors, around, char *);
     while (around-- > 0) {
         int j;
         int m = 0;
@@ -185,18 +195,18 @@ neighbors(char *hash, STRLEN hashlen, int around, int offset, char ***neighbors,
         /* going to insert this many neighbors */
         Renew( neighbors[n], 8 * i - 1, char *);
 
-        neighbors[n][m++] = adjacent(xhash, xhashlen, TOP);
+        xhash = neighbors[n][m++] = adjacent(xhash, xhashlen, TOP);
         for ( j = 0; j < 2 * i - 1; j ++ ) {
-            neighbors[n][m++] = adjacent(xhash, xhashlen, RIGHT);
+            xhash = neighbors[n][m++] = adjacent(xhash, xhashlen, RIGHT);
         }
         for ( j = 0; j < 2 * i; j ++ ) {
-            neighbors[n][m++] = adjacent(xhash, xhashlen, BOTTOM);
+            xhash = neighbors[n][m++] = adjacent(xhash, xhashlen, BOTTOM);
         }
         for ( j = 0; j < 2 * i; j ++ ) {
-            neighbors[n][m++] = adjacent(xhash, xhashlen, LEFT);
+            xhash = neighbors[n][m++] = adjacent(xhash, xhashlen, LEFT);
         }
         for ( j = 0; j < 2 * i; j ++ ) {
-            neighbors[n][m++] = adjacent(xhash, xhashlen, TOP);
+            xhash = neighbors[n][m++] = adjacent(xhash, xhashlen, TOP);
         }
         i++;
         n++;
