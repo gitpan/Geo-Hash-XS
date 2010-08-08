@@ -48,7 +48,7 @@ encode(char *buf, STRLEN precision, NV lat, NV lon) {
 }
 
 void
-decode(char *hash, STRLEN len, NV *lat, NV *lon) {
+decode_to_interval(char *hash, STRLEN len, NV *lat_min_out, NV *lat_max_out, NV *lon_min_out, NV *lon_max_out) {
     STRLEN i, j;
     IV which = 0, min_or_max;
     NV 
@@ -97,6 +97,16 @@ decode(char *hash, STRLEN len, NV *lat, NV *lon) {
         }
     }
 
+    *lat_min_out = lat_min;
+    *lat_max_out = lat_max;
+    *lon_min_out = lon_min;
+    *lon_max_out = lon_max;
+}
+
+void
+decode(char *hash, STRLEN len, NV *lat, NV *lon) {
+    NV lat_min = 0, lat_max = 0, lon_min = 0, lon_max = 0;
+    decode_to_interval(hash, len, &lat_min, &lat_max, &lon_min, &lon_max);
     *lat = (lat_max + lat_min) / 2;
     *lon = (lon_max + lon_min) / 2;
 }
@@ -115,20 +125,32 @@ char* BORDERS[4][2] = {
     { "028b", "0145hjnp" }
 };
 
+static IV
+bits_for_number(char *number) {
+    for(; *number != '\0'; number++){
+        if(*number == '.'){
+            number++; /* skip dot */
+            /* 3.32192809488736 = log_2(10) */
+            return (IV) (strlen(number)) * 3.32192809488736 + 1;
+        }
+    }
+    return 0;
+}
+
 STRLEN
-precision(STRLEN lat, STRLEN lon) {
-    IV lab;
-    IV lob;
-    lab = (int) ( (lat * 3.32192809488736 + 1) + 8 );
-    lob = (int) ( (lon * 3.32192809488736 + 1) + 9 );
-    return (int) ( ( ( lab > lob ? lab : lob ) + 1 ) / 2.5 );
+precision(SV *lat, SV *lon) {
+    IV lab = bits_for_number(SvPV_nolen(lat)) + 8;  /* 8 > log_2(180) */
+    IV lob = bits_for_number(SvPV_nolen(lon)) + 9;  /* 9 > log_2(360) */
+
+    /* Though it seems I should use ceil(), I copied the logic from Geo::Hash */
+    return (STRLEN) ( ( ( lab > lob ? lab : lob ) + 1 ) / 2.5 );
 }
 
 enum GH_DIRECTION {
-    RIGHT = 0,
-    LEFT = 1,
-    TOP = 2,
-    BOTTOM = 3
+    ADJ_RIGHT = 0,
+    ADJ_LEFT = 1,
+    ADJ_TOP = 2,
+    ADJ_BOTTOM = 3
 };
 
 /* need to free this return value! */
@@ -178,8 +200,8 @@ neighbors(char *hash, STRLEN hashlen, int around, int offset, char ***neighbors,
     Newxz( *neighbors, *nsize, char *);
 
     while ( offset > 0 ) {
-        char *top = adjacent( xhash, xhashlen, TOP );
-        char *left = adjacent( top, strlen(top), LEFT );
+        char *top = adjacent( xhash, xhashlen, ADJ_TOP );
+        char *left = adjacent( top, strlen(top), ADJ_LEFT );
         Safefree(xhash);
         Safefree(top);
         xhash = left;
@@ -195,18 +217,18 @@ neighbors(char *hash, STRLEN hashlen, int around, int offset, char ***neighbors,
         int j;
 
         /* going to insert this many neighbors */
-        xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, TOP);
+        xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_TOP);
         for ( j = 0; j < 2 * i - 1; j ++ ) {
-            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, RIGHT);
+            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_RIGHT);
         }
         for ( j = 0; j < 2 * i; j ++ ) {
-            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, BOTTOM);
+            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_BOTTOM);
         }
         for ( j = 0; j < 2 * i; j ++ ) {
-            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, LEFT);
+            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_LEFT);
         }
         for ( j = 0; j < 2 * i; j ++ ) {
-            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, TOP);
+            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_TOP);
         }
         i++;
     }
@@ -218,23 +240,42 @@ MODULE = Geo::Hash::XS PACKAGE = Geo::Hash::XS
 PROTOTYPES: DISABLE
 
 char *
-encode(self, lat, lon, p = 32)
+encode(self, lat, lon, p = 0)
         SV *self;
         SV *lat;
         SV *lon;
         IV p;
     CODE:
-        /*
         if (p <= 0) {
-            p = precision( SvLEN(lat), SvLEN(lon) );
+            p = precision(lat, lon);
         }
-        */
         PERL_UNUSED_VAR(self);
 
         Newxz(RETVAL, p + 1, char);
         encode(RETVAL, p, SvNV(lat), SvNV(lon));
     OUTPUT:
         RETVAL
+
+void
+decode_to_interval(self, hash)
+        SV *self;
+        char *hash;
+    INIT:
+        NV lat_min = 0, lat_max = 0, lon_min = 0, lon_max = 0;
+        STRLEN len = strlen(hash);
+        AV *lat_range = (AV *)sv_2mortal((SV *)newAV());
+        AV *lon_range = (AV *)sv_2mortal((SV *)newAV());
+    PPCODE:
+        PERL_UNUSED_VAR(self);
+        decode_to_interval(hash, len, &lat_min, &lat_max, &lon_min, &lon_max);
+
+        av_push(lat_range, newSVnv(lat_min));
+        av_push(lat_range, newSVnv(lat_max));
+        av_push(lon_range, newSVnv(lon_min));
+        av_push(lon_range, newSVnv(lon_max));
+
+        XPUSHs(sv_2mortal(newRV_inc((SV *)lat_range)));
+        XPUSHs(sv_2mortal(newRV_inc((SV *)lon_range)));
 
 void
 decode(self, hash)
@@ -248,6 +289,17 @@ decode(self, hash)
         decode(hash, len, &lat, &lon);
         mXPUSHn(lat);
         mXPUSHn(lon);
+
+STRLEN
+precision(self, lat, lon)
+        SV *self
+        SV *lat
+        SV *lon;
+    CODE:
+        PERL_UNUSED_VAR(self);
+        RETVAL = precision(lat, lon);
+    OUTPUT:
+        RETVAL
 
 char *
 adjacent(self, hash, direction)
@@ -281,4 +333,16 @@ neighbors(self, hash, around = 1, offset = 0)
             Safefree(list[i]);
         }
         Safefree(list);
+
+IV
+_constant()
+    ALIAS:
+        ADJ_TOP = ADJ_TOP
+        ADJ_RIGHT = ADJ_RIGHT
+        ADJ_LEFT = ADJ_LEFT
+        ADJ_BOTTOM = ADJ_BOTTOM
+    CODE:
+        RETVAL = ix;
+    OUTPUT:
+        RETVAL
 

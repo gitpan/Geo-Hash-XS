@@ -18,7 +18,11 @@ ppport.h
 t/001_geohasn.t
 t/002_adjacent.t
 t/003_neighbors.t
+t/004_decode_to_interval.t
+t/005_precision.t
+t/900_compat.t
+t/900_compat/geohash.t
 xs/geohash.xs
-xt/04_leak.t
 xt/99_pod-coverage.t
 xt/99_pod.t
+xt/leak.t

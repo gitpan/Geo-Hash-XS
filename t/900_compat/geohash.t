@@ -41,20 +41,18 @@ my @tests = (
     },
 );
 
-# plan tests => 8 * @tests;
+plan tests => 8 * @tests;
 
 for my $test ( @tests ) {
     my ( $hash, $pos, $eps ) = @{$test}{qw(hash pos eps)};
     ok my $gh = Geo::Hash::XS->new, "$hash: new";
     isa_ok $gh, 'Geo::Hash::XS';
     is $gh->encode( @$pos, length $hash ), $hash, "$hash: encode";
-
     {
         my @got = $gh->decode( $hash );
         ok abs( $got[$_] - $pos->[$_] ) < $eps, "$hash: decode $_"
           for 0 .. 1;
     }
-
     {
         my $enc_hash = $gh->encode( @$pos );
         ok abs( length( $enc_hash ) - length( $hash ) ) <= 1,
@@ -65,5 +63,3 @@ for my $test ( @tests ) {
           for 0 .. 1;
     }
 }
-
-done_testing;
