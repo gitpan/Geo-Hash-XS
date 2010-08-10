@@ -5,7 +5,7 @@ use Exporter 'import';
 our @EXPORT_OK = qw( ADJ_TOP ADJ_RIGHT ADJ_LEFT ADJ_BOTTOM );
 our %EXPORT_TAGS = (adjacent => \@EXPORT_OK);
 
-our $VERSION = '0.00006';
+our $VERSION = '0.00007';
 XSLoader::load __PACKAGE__, $VERSION;
 
 sub new { bless {}, shift }
@@ -62,7 +62,7 @@ want the block to the right of C<$hash>, you say:
     my $gh = Geo::Hash::XS->new();
     my $adjacent = $gh->adjacent( $hash, ADJ_RIGHT );
 
-=head2 neighbors($hash, $around, $offset)
+=head2 @list_of_geohashes = $gh->neighbors($hash, $around, $offset)
 
 Returns the list of neighbors (the blocks surrounding $hash)
 
