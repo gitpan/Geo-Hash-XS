@@ -175,11 +175,13 @@ adjacent(char *hash, STRLEN hashlen, enum GH_DIRECTION direction) {
     memcpy(base, hash, hashlen - 1);
     *(base + hashlen - 1) = '\0';
 
-    pos = strchr(BORDERS[direction][type], last_ch);
-    if (pos != NULL) {
-        char *tmp = adjacent(base, strlen(base), direction);
-        strcpy(base, tmp);
-        Safefree(tmp);
+    if (hashlen > 1) {
+        pos = strchr(BORDERS[direction][type], last_ch);
+        if (pos != NULL) {
+           char *tmp = adjacent(base, strlen(base), direction);
+           strcpy(base, tmp);
+           Safefree(tmp);
+        }
     }
     base_len = strlen(base);
     Newxz( ret, base_len + 2, char );
@@ -206,10 +208,10 @@ neighbors(char *hash, STRLEN hashlen, int around, int offset, char ***neighbors,
     while ( offset > 0 ) {
         char *top = adjacent( xhash, xhashlen, ADJ_TOP );
         char *left = adjacent( top, strlen(top), ADJ_LEFT );
-        Safefree(xhash);
         Safefree(top);
+        Safefree(xhash);
         xhash = left;
-        xhashlen = strlen(xhash);
+        xhashlen = strlen(left);
 
         offset--;
         i++;
@@ -217,25 +219,37 @@ neighbors(char *hash, STRLEN hashlen, int around, int offset, char ***neighbors,
 
     {
     int m = 0;
+    char *tmp = xhash;
     while (around-- > 0) {
         int j;
-
         /* going to insert this many neighbors */
-        xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_TOP);
+        (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_TOP);
+
         for ( j = 0; j < 2 * i - 1; j ++ ) {
-            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_RIGHT);
+            xhash = (*neighbors)[m - 1];
+            xhashlen = strlen( xhash );
+            (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_RIGHT);
         }
         for ( j = 0; j < 2 * i; j ++ ) {
-            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_BOTTOM);
+            xhash = (*neighbors)[m - 1];
+            xhashlen = strlen( xhash );
+            (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_BOTTOM);
         }
         for ( j = 0; j < 2 * i; j ++ ) {
-            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_LEFT);
+            xhash = (*neighbors)[m - 1];
+            xhashlen = strlen( xhash );
+            (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_LEFT);
         }
         for ( j = 0; j < 2 * i; j ++ ) {
-            xhash = (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_TOP);
+            xhash = (*neighbors)[m - 1];
+            xhashlen = strlen( xhash );
+            (*neighbors)[m++] = adjacent(xhash, xhashlen, ADJ_TOP);
         }
         i++;
+        xhash = (*neighbors)[m - 1];
+        xhashlen = strlen( xhash );
     }
+        Safefree(tmp);
     }
 }
 
@@ -243,20 +257,26 @@ MODULE = Geo::Hash::XS PACKAGE = Geo::Hash::XS
 
 PROTOTYPES: DISABLE
 
-char *
+SV *
 encode(self, lat, lon, p = 0)
         SV *self;
         SV *lat;
         SV *lon;
         IV p;
+    PREINIT:
+        char *encoded;
     CODE:
         if (p <= 0) {
             p = precision(lat, lon);
         }
         PERL_UNUSED_VAR(self);
 
-        Newxz(RETVAL, p + 1, char);
-        encode(RETVAL, p, SvNV(lat), SvNV(lon));
+        Newxz(encoded, p + 1, char);
+        encode(encoded, p, SvNV(lat), SvNV(lon));
+
+        RETVAL = newSV(0);
+        sv_setpv( RETVAL, encoded );
+        Safefree( encoded );
     OUTPUT:
         RETVAL
 
@@ -264,7 +284,7 @@ void
 decode_to_interval(self, hash)
         SV *self;
         char *hash;
-    INIT:
+    PREINIT:
         NV lat_min = 0, lat_max = 0, lon_min = 0, lon_max = 0;
         STRLEN len = strlen(hash);
         AV *lat_range = (AV *)sv_2mortal((SV *)newAV());
@@ -285,7 +305,7 @@ void
 decode(self, hash)
         SV *self;
         char *hash;
-    INIT:
+    PREINIT:
         NV lat = 0, lon = 0;
         STRLEN len = strlen(hash);
     PPCODE:
@@ -305,14 +325,20 @@ precision(self, lat, lon)
     OUTPUT:
         RETVAL
 
-char *
+SV *
 adjacent(self, hash, direction)
         SV *self;
         char *hash;
         int direction;
+    PREINIT:
+        char *adj;
     CODE:
         PERL_UNUSED_VAR(self);
-        RETVAL = adjacent(hash, strlen(hash), direction);
+        adj = adjacent(hash, strlen(hash), direction);
+
+        RETVAL = newSV(0);
+        sv_setpv(RETVAL, adj);
+        Safefree(adj);
     OUTPUT:
         RETVAL
 
