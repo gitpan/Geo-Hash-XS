@@ -20,8 +20,9 @@ t/002_adjacent.t
 t/003_neighbors.t
 t/004_decode_to_interval.t
 t/005_precision.t
-t/900_compat.t
 xs/geohash.xs
 xt/99_pod-coverage.t
 xt/99_pod.t
 xt/leak.t
+xt/compat.t
+
