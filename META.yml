@@ -24,6 +24,7 @@ no_index:
     - xt
 requires:
   XSLoader: 0.1
+  perl: 5.8.1
 resources:
   license: http://dev.perl.org/licenses/
-version: 0.00012
+version: 0.00013
